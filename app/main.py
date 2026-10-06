@@ -10,6 +10,8 @@ app = FastAPI(title="Task CRUD API")
 
 @app.post("/tasks", response_model=schemas.TaskResponse, status_code=201)
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
+    """Create a new task. Titles must be unique."""
+    # Reject duplicates with 409 Conflict before touching the database
     existing = db.query(models.Task).filter(models.Task.title == task.title).first()
     if existing:
         raise HTTPException(status_code=409, detail="A task with this title already exists")
@@ -35,9 +37,12 @@ def get_task(task_id: int, db: Session = Depends(get_db)):
 
 @app.patch("/tasks/{task_id}", response_model=schemas.TaskResponse)
 def update_task(task_id: int, updates: schemas.TaskUpdate, db: Session = Depends(get_db)):
+    """Partially update a task. Only fields included in the request are changed."""
     task = db.get(models.Task, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
+         # exclude_unset=True skips fields the client didn't send,
+        # so omitted fields aren't overwritten with None
     for field, value in updates.model_dump(exclude_unset=True).items():
         setattr(task, field, value)
     db.commit()
